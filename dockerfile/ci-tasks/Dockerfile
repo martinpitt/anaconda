@@ -12,6 +12,8 @@ RUN dnf update -y && \
   git \
   bzip2 \
   cppcheck \
+  libicu \
+  lttng-ust \
   rpm-ostree \
   pykickstart \
   python3-pip \
@@ -33,6 +35,16 @@ RUN pip install \
   dogtail \
   nose-testconfig \
   rpmfluff
+
+# see https://github.com/martinpitt/anaconda/settings/actions/add-new-runner
+RUN mkdir actions-runner && cd actions-runner && \
+  URL=$(curl -s https://api.github.com/repos/actions/runner/releases/latest | \
+        sed -n '/browser_download_url.*linux-x64/ { s/^.*https:/https:/; s/"$//; p }') && \
+  curl -O -L "$URL" && \
+  tar xzf actions-runner-*.tar.gz && \
+  rm actions-runner-*.tar.gz
+
+COPY github-action-run-once /usr/local/bin/
 
 RUN mkdir /anaconda
 
