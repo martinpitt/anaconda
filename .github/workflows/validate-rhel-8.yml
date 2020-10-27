@@ -1,0 +1,62 @@
+# Run rhel-8 unit tests in a PR triggered by a "/test [...]" comment from an organization member.
+# This avoids running untrusted and unreviewed code on self-hosted runners.
+name: unit-tests-rhel-8
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  unit-tests:
+    # restrict running of tests to trusted organization members
+    # see https://developer.github.com/v4/enum/commentauthorassociation/
+    if: startsWith(github.event.comment.body, '/test') && contains('OWNER MEMBER COLLABORATOR', github.event.comment.author_association)
+    # PoC FIXME: Replace with [self-hosted, ci-tasks, rhel-8]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get information for pull request
+        uses: octokit/request-action@v2.x
+        id: pr_info
+        with:
+          route: GET /repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dump PR info
+        run: |
+          echo "${{ steps.pr_info.outputs.data }}"
+
+      # the following steps only run for PRs against rhel-8 branch
+
+      # we post statuses manually as this does not run from a pull_request event
+      - name: Create in-progress status
+        if: fromJson(steps.pr_info.outputs.data).base.ref == 'rhel-8'
+        uses: Sibz/github-status-action@v1
+        with:
+          authToken: ${{ secrets.GITHUB_TOKEN }}
+          context: 'demo test'
+          state: pending
+          sha: ${{ fromJson(steps.pr_info.outputs.data).head.sha }}
+          target_url: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Clone repository
+        if: fromJson(steps.pr_info.outputs.data).base.ref == 'rhel-8'
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ fromJson(steps.pr_info.outputs.data).head.sha }}
+
+      - name: Run fake test
+        if: fromJson(steps.pr_info.outputs.data).base.ref == 'rhel-8'
+        run: |
+          git show
+          sleep 10
+          true # use false for failing test
+
+      - name: Set result status
+        if: fromJson(steps.pr_info.outputs.data).base.ref == 'rhel-8'
+        uses: Sibz/github-status-action@v1
+        with:
+          authToken: ${{ secrets.GITHUB_TOKEN }}
+          context: 'demo test'
+          state: ${{ job.status }}
+          sha: ${{ fromJson(steps.pr_info.outputs.data).head.sha }}
+          target_url: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
